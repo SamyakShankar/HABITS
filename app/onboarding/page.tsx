@@ -15,6 +15,10 @@ const steps = [
   { icon: Palette, title: "Tune the atmosphere", text: "Neon themes, glow intensity, reminders, and sound placeholders." }
 ];
 
+import { completeOnboarding } from "./actions";
+
+// ...
+
 export default function OnboardingPage() {
   return (
     <main className="relative z-10 min-h-screen px-4 py-6 sm:px-6 lg:px-10">
@@ -32,9 +36,9 @@ export default function OnboardingPage() {
             This frontend flow stages the habit setup experience with mock data, interactive choices, and a premium native-app feel.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild>
-              <Link href="/dashboard">Complete Setup</Link>
-            </Button>
+            <form action={completeOnboarding}>
+              <Button type="submit">Complete Setup</Button>
+            </form>
             <Button asChild variant="cyan">
               <Link href="/focus">Try Focus Mode</Link>
             </Button>

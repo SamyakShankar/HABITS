@@ -35,7 +35,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <p className="mt-3 text-xs text-slate-300">{xpProfile.nextLevelXp - xpProfile.xp} XP to next level</p>
         </div>
         <nav className="mt-8 space-y-2">
-          {[...navItems, { href: "/settings", label: "Settings", icon: Settings }].map((item) => {
+          {[
+            ...navItems,
+            { href: "/settings", label: "Settings", icon: Settings },
+            { href: "/auth/logout", label: "Logout", icon: CloudOff } // Reusing CloudOff for now as it exists in the import
+          ].map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
             return (

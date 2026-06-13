@@ -39,9 +39,6 @@ export default function LandingPage() {
       <nav className="mx-auto flex max-w-7xl items-center justify-between">
         <Logo />
         <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" className="hidden sm:inline-flex">
-            <Link href="/onboarding">Onboarding</Link>
-          </Button>
           <Button asChild>
             <Link href="/dashboard">Enter OS</Link>
           </Button>
