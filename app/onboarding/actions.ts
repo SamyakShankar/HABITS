@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createHabit, fetchHabits } from "@/lib/supabase/queries";
+import { createHabit, fetchHabits } from "@/lib/supabase/habits";
 
 export async function completeOnboarding() {
   const supabase = await createClient();
