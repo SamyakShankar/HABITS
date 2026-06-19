@@ -18,7 +18,7 @@ import type {
 } from "@/types/database";
 import type { Habit, Achievement } from "@/types";
 import { resolveIcon } from "@/lib/icon-map";
-import { toggleCompletion } from "@/lib/supabase/habits";
+import { deleteHabit as deleteHabitRecord, toggleCompletion } from "@/lib/supabase/habits";
 
 export type HydratedProfile = Profile & {
   weeklyConsistency: number;
@@ -70,6 +70,7 @@ type AppState = {
     moods: MoodEntry[]
   ) => void;
   toggleHabit: (supabase: SupabaseClient<Database>, habitId: string) => Promise<void>;
+  deleteHabit: (supabase: SupabaseClient<Database>, habitId: string) => Promise<void>;
   // ... more actions will be added later
 };
 
@@ -333,6 +334,18 @@ export const useAppStore = create<AppState>()(
         } catch (error) {
           console.error("Failed to toggle habit", error);
         }
+      },
+
+      deleteHabit: async (supabase, habitId) => {
+        await deleteHabitRecord(supabase, habitId);
+        const { rawHabits, rawCompletions, rawProfile, rawFocus, rawAchievements } = get();
+        const nextHabits = rawHabits.filter((habit) => habit.id !== habitId);
+        const nextCompletions = rawCompletions.filter((completion) => completion.habit_id !== habitId);
+        set({
+          rawHabits: nextHabits,
+          rawCompletions: nextCompletions,
+          ...computeHydratedState(rawProfile, nextHabits, nextCompletions, rawFocus, rawAchievements)
+        });
       }
     }),
     {

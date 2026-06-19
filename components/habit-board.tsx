@@ -4,13 +4,13 @@ import { Plus, Wand2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { HabitCard } from "@/components/habit-card";
 import { Button } from "@/components/ui/button";
-import { useHabitStore } from "@/store/habit-store";
+import { useAppStore } from "@/store/app-store";
 import { cardReveal, smoothTransition } from "@/lib/motion";
 
 const categories = ["All", "Mind", "Body", "Focus", "Craft", "Recovery"];
 
 export function HabitBoard() {
-  const { habits, selectedCategory, setCategory } = useHabitStore();
+  const { habits, selectedCategory, setCategory } = useAppStore();
   const filteredHabits =
     selectedCategory === "All" ? habits : habits.filter((habit) => habit.category === selectedCategory);
 

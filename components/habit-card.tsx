@@ -5,14 +5,16 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { useHabitStore } from "@/store/habit-store";
+import { useAppStore } from "@/store/app-store";
+import { createClient } from "@/lib/supabase/client";
 import type { Habit } from "@/types";
 import { cn } from "@/lib/utils";
 import { springTransition } from "@/lib/motion";
 
 export function HabitCard({ habit }: { habit: Habit }) {
-  const toggleHabit = useHabitStore((state) => state.toggleHabit);
-  const deleteHabit = useHabitStore((state) => state.deleteHabit);
+  const toggleHabit = useAppStore((state) => state.toggleHabit);
+  const deleteHabit = useAppStore((state) => state.deleteHabit);
+  const supabase = createClient();
   const Icon = habit.icon;
   const completedDays = habit.completionHistory.filter(Boolean).length;
   const progress = Math.round((completedDays / habit.completionHistory.length) * 100);
@@ -46,7 +48,7 @@ export function HabitCard({ habit }: { habit: Habit }) {
           variant={habit.completed ? "cyan" : "ghost"}
           size="icon"
           aria-label={`Toggle ${habit.title}`}
-          onClick={() => toggleHabit(habit.id)}
+          onClick={() => toggleHabit(supabase, habit.id)}
         >
           <Check className="h-4 w-4" />
         </Button>
@@ -77,7 +79,7 @@ export function HabitCard({ habit }: { habit: Habit }) {
           <Edit3 className="h-3.5 w-3.5" />
           Edit
         </Button>
-        <Button variant="danger" size="sm" onClick={() => deleteHabit(habit.id)}>
+        <Button variant="danger" size="sm" onClick={() => deleteHabit(supabase, habit.id)}>
           <Trash2 className="h-3.5 w-3.5" />
           Delete
         </Button>
