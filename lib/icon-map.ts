@@ -55,3 +55,6 @@ export function resolveIcon(name: string | null | undefined): LucideIcon {
   if (!name) return Target;
   return iconMap[name] ?? Target;
 }
+
+/** All available icon name strings */
+export const ICON_NAMES = Object.keys(iconMap);

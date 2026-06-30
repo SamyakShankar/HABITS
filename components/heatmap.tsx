@@ -1,6 +1,7 @@
-import { heatmap } from "@/lib/mock-data";
+import { useAppStore } from "@/store/app-store";
 
 export function ConsistencyHeatmap() {
+  const heatmap = useAppStore(state => state.heatmap || Array(42).fill(0));
   return (
     <div className="grid grid-cols-7 gap-2">
       {heatmap.map((value, index) => (

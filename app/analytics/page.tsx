@@ -6,10 +6,18 @@ import { NeonPanel } from "@/components/neon-panel";
 import { StatCard } from "@/components/stat-card";
 import { ConsistencyHeatmap } from "@/components/heatmap";
 import { DisciplineLineChart, TrendChart, WeeklyChart } from "@/components/charts";
-import { categoryScores, focusHistory } from "@/lib/mock-data";
 import { Progress } from "@/components/ui/progress";
+import { useAppStore } from "@/store/app-store";
 
 export default function AnalyticsPage() {
+  const categoryScores = useAppStore(state => state.categoryScores);
+  const focusHistory = useAppStore(state => state.focusHistory);
+  const profile = useAppStore(state => state.profile);
+
+  const dailyProgress = profile?.dailyProgress ?? 0;
+  const streak = profile?.streak ?? 0;
+  const focusMinutes = profile?.focusMinutes ?? 0;
+  
   return (
     <AppShell>
       <div className="min-w-0 space-y-5">
@@ -18,9 +26,9 @@ export default function AnalyticsPage() {
           <h1 className="mt-2 pixel-title text-3xl font-black uppercase text-white">Your improvement telemetry</h1>
         </div>
         <div className="grid min-w-0 gap-4 md:grid-cols-4">
-          <StatCard label="Completion" value="84%" icon={BadgeCheck} accent="text-mint" />
-          <StatCard label="Focus Total" value="12h" icon={AlarmClock} accent="text-cyan" />
-          <StatCard label="Best Streak" value="14 days" icon={Flame} accent="text-danger" />
+          <StatCard label="Completion" value={`${dailyProgress}%`} icon={BadgeCheck} accent="text-mint" />
+          <StatCard label="Focus Total" value={`${focusMinutes}m`} icon={AlarmClock} accent="text-cyan" />
+          <StatCard label="Best Streak" value={`${streak} days`} icon={Flame} accent="text-danger" />
           <StatCard label="XP Velocity" value="+18%" icon={TrendingUp} accent="text-pulse" />
         </div>
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,.8fr)]">

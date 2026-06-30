@@ -2,18 +2,36 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ChevronRight, CloudOff, Settings } from "lucide-react";
+import { Bell, ChevronRight, CloudOff, Settings, Target, Activity, Trophy, AlarmClock, Star } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MobileNav } from "@/components/shell/mobile-nav";
-import { navItems, xpProfile } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { pageTransition, smoothTransition } from "@/lib/motion";
 
+import { DataProvider } from "@/components/data-provider";
+import { useAppStore } from "@/store/app-store";
+
 export function AppShell({ children }: { children: React.ReactNode }) {
+  return (
+    <DataProvider>
+      <AppShellInner>{children}</AppShellInner>
+    </DataProvider>
+  );
+}
+
+function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const profile = useAppStore((state) => state.profile);
+
+  // Fallback values while loading or if profile is missing
+  const level = profile?.level ?? 1;
+  const title = profile?.title ?? "Novice";
+  const xp = profile?.xp ?? 0;
+  const nextLevelXp = profile?.next_level_xp ?? 100;
+  const progressPercent = Math.min(100, Math.max(0, (xp / nextLevelXp) * 100));
 
   return (
     <div className="relative z-10 min-h-screen pb-24 lg:pb-0">
@@ -21,24 +39,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Logo />
         <div className="mt-8 rounded-lg border border-pulse/30 bg-pulse/10 p-4 shadow-insetGlow">
           <div className="flex items-center justify-between">
-            <Badge>Level {xpProfile.level}</Badge>
-            <span className="text-xs font-bold uppercase text-cyan">{xpProfile.title}</span>
+            <Badge>Level {level}</Badge>
+            <span className="text-xs font-bold uppercase text-cyan">{title}</span>
           </div>
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
             <motion.div
               className="h-full rounded-full bg-gradient-to-r from-cyan to-pulse shadow-neon"
               initial={{ width: 0 }}
-              animate={{ width: `${(xpProfile.xp / xpProfile.nextLevelXp) * 100}%` }}
+              animate={{ width: `${progressPercent}%` }}
               transition={{ duration: 1.1 }}
             />
           </div>
-          <p className="mt-3 text-xs text-slate-300">{xpProfile.nextLevelXp - xpProfile.xp} XP to next level</p>
+          <p className="mt-3 text-xs text-slate-300">{nextLevelXp - xp} XP to next level</p>
         </div>
         <nav className="mt-8 space-y-2">
           {[
-            ...navItems,
+            { href: "/dashboard", label: "Dashboard", icon: Target },
+            { href: "/focus", label: "Focus", icon: AlarmClock },
+            { href: "/analytics", label: "Analytics", icon: Activity },
+            { href: "/achievements", label: "Achievements", icon: Trophy },
+            { href: "/profile", label: "Progress", icon: Star },
             { href: "/settings", label: "Settings", icon: Settings },
-            { href: "/auth/logout", label: "Logout", icon: CloudOff } // Reusing CloudOff for now as it exists in the import
+            { href: "/auth/logout", label: "Logout", icon: CloudOff }
           ].map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;

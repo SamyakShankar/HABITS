@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { monthlyTrend, weeklyData } from "@/lib/mock-data";
+import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
 
 const tooltipStyle = {
@@ -26,6 +26,7 @@ const tooltipStyle = {
 };
 
 export function WeeklyChart({ className = "h-64" }: { className?: string }) {
+  const weeklyData = useAppStore(state => state.weeklyData);
   return (
     <ChartFrame className={className}>
       {({ width, height }) => (
@@ -43,6 +44,7 @@ export function WeeklyChart({ className = "h-64" }: { className?: string }) {
 }
 
 export function TrendChart({ className = "h-72" }: { className?: string }) {
+  const monthlyTrend = useAppStore(state => state.monthlyTrend);
   return (
     <ChartFrame className={className}>
       {({ width, height }) => (
@@ -72,6 +74,7 @@ export function TrendChart({ className = "h-72" }: { className?: string }) {
 }
 
 export function DisciplineLineChart({ className = "h-56" }: { className?: string }) {
+  const monthlyTrend = useAppStore(state => state.monthlyTrend);
   return (
     <ChartFrame className={className}>
       {({ width, height }) => (

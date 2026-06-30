@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { AppShell } from "@/components/shell/app-shell";
 import { NeonPanel } from "@/components/neon-panel";
 import { Progress } from "@/components/ui/progress";
-import { achievements } from "@/lib/mock-data";
+import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
 
 const rarityStyles = {
@@ -15,6 +15,7 @@ const rarityStyles = {
 };
 
 export default function AchievementsPage() {
+  const achievements = useAppStore(state => state.achievements);
   return (
     <AppShell>
       <div className="space-y-5">

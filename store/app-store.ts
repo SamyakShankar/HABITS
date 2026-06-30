@@ -31,6 +31,7 @@ export type HydratedAchievement = Achievement & {
 };
 
 export type WeeklyDataPoint = { day: string; completion: number; focus: number };
+export type MonthlyTrendPoint = { week: string; xp: number; discipline: number };
 export type FocusHistoryPoint = { label: string; minutes: number; sessions: number };
 export type CategoryScore = { name: string; score: number };
 
@@ -49,10 +50,13 @@ type AppState = {
   profile: HydratedProfile | null;
   habits: Habit[];
   weeklyData: WeeklyDataPoint[];
+  monthlyTrend: MonthlyTrendPoint[];
   heatmap: number[];
   achievements: HydratedAchievement[];
   focusHistory: FocusHistoryPoint[];
   categoryScores: CategoryScore[];
+  notes: Note[];
+  moods: MoodEntry[];
   
   // UI State
   selectedCategory: string;
@@ -71,7 +75,10 @@ type AppState = {
   ) => void;
   toggleHabit: (supabase: SupabaseClient<Database>, habitId: string) => Promise<void>;
   deleteHabit: (supabase: SupabaseClient<Database>, habitId: string) => Promise<void>;
-  // ... more actions will be added later
+  createHabit: (supabase: SupabaseClient<Database>, data: { title: string; category: DbHabit["category"]; difficulty: DbHabit["difficulty"]; cadence: DbHabit["cadence"]; icon_name?: string; color?: string; note?: string }) => Promise<void>;
+  saveFocusSession: (supabase: SupabaseClient<Database>, durationMinutes: number) => Promise<void>;
+  addNote: (supabase: SupabaseClient<Database>, content: string) => Promise<void>;
+  saveMood: (supabase: SupabaseClient<Database>, mood: "Low" | "Calm" | "Sharp" | "Lit" | "Zen") => Promise<void>;
 };
 
 /** Re-calculate all hydrated UI properties from raw data */
@@ -80,7 +87,9 @@ function computeHydratedState(
   rawHabits: DbHabit[],
   rawCompletions: HabitCompletion[],
   rawFocus: FocusSession[],
-  rawAchievements: (UserAchievement & { achievement_definitions: AchievementDefinition })[]
+  rawAchievements: (UserAchievement & { achievement_definitions: AchievementDefinition })[],
+  rawNotes: Note[],
+  rawMoods: MoodEntry[]
 ) {
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayDate = new Date();
@@ -138,11 +147,31 @@ function computeHydratedState(
     const todayFocus = rawFocus.filter(f => isSameDay(new Date(f.started_at), todayDate));
     const focusMinutes = todayFocus.reduce((acc, f) => acc + f.duration_minutes, 0);
 
-    // Mock weekly consistency for now, will calculate later
-    const weeklyConsistency = dailyProgress; // Fallback
+    // Weekly consistency: average daily completion % over last 7 days
+    let weeklyTotal = 0;
+    for (let i = 0; i < 7; i++) {
+      const dateStr = format(subDays(todayDate, i), "yyyy-MM-dd");
+      const done = rawCompletions.filter(c => c.completed_date === dateStr && c.completed).length;
+      weeklyTotal += rawHabits.length > 0 ? (done / rawHabits.length) : 0;
+    }
+    const weeklyConsistency = rawHabits.length > 0 ? Math.round((weeklyTotal / 7) * 100) : 0;
+
+    // Update streak on profile: count consecutive days with >=1 completion
+    let profileStreak = 0;
+    let checkDate = startOfDay(todayDate);
+    // Only count today if has completions
+    const todayDone = rawCompletions.some(c => c.completed_date === todayStr && c.completed);
+    if (!todayDone) checkDate = subDays(checkDate, 1);
+    while (true) {
+      const ds = format(checkDate, "yyyy-MM-dd");
+      const hasSome = rawCompletions.some(c => c.completed_date === ds && c.completed);
+      if (hasSome) { profileStreak++; checkDate = subDays(checkDate, 1); }
+      else break;
+    }
 
     profile = {
       ...rawProfile,
+      streak: profileStreak,
       dailyProgress,
       focusMinutes,
       weeklyConsistency,
@@ -214,9 +243,30 @@ function computeHydratedState(
       totalScore += (done / catHabits.length);
     }
     return { name: cat, score: Math.round((totalScore / 7) * 100) };
-  });
+  }).filter(c => c.score > 0 || rawHabits.some(h => h.category === c.name));
 
-  return { profile, habits, weeklyData, heatmap, achievements, focusHistory, categoryScores };
+  // 8. Monthly Trend (last 4 weeks)
+  const monthlyTrend: MonthlyTrendPoint[] = [];
+  for (let w = 3; w >= 0; w--) {
+    const weekStart = subDays(todayDate, w * 7 + 6);
+    const weekEnd = subDays(todayDate, w * 7);
+    let weekXp = 0;
+    let weekDisc = 0;
+    for (let d = 0; d <= 6; d++) {
+      const day = subDays(weekEnd, d);
+      const ds = format(day, "yyyy-MM-dd");
+      const done = rawCompletions.filter(c => c.completed_date === ds && c.completed).length;
+      weekDisc += rawHabits.length > 0 ? (done / rawHabits.length) : 0;
+      weekXp += done * 20; // rough XP approximation
+    }
+    monthlyTrend.push({
+      week: `W${4 - w}`,
+      xp: weekXp,
+      discipline: Math.round((weekDisc / 7) * 100)
+    });
+  }
+
+  return { profile, habits, weeklyData, monthlyTrend, heatmap, achievements, focusHistory, categoryScores, notes: rawNotes, moods: rawMoods };
 }
 
 export const useAppStore = create<AppState>()(
@@ -234,10 +284,13 @@ export const useAppStore = create<AppState>()(
       profile: null,
       habits: [],
       weeklyData: [],
+      monthlyTrend: [],
       heatmap: [],
       achievements: [],
       focusHistory: [],
       categoryScores: [],
+      notes: [],
+      moods: [],
 
       selectedCategory: "All",
       setCategory: (category) => set({ selectedCategory: category }),
@@ -264,7 +317,7 @@ export const useAppStore = create<AppState>()(
           rawAchievements: achievements,
           rawNotes: notes,
           rawMoods: moods,
-          ...computeHydratedState(profile, habits, completions, focusSessions, achievements)
+          ...computeHydratedState(profile, habits, completions, focusSessions, achievements, notes, moods)
         });
       },
 
@@ -312,11 +365,12 @@ export const useAppStore = create<AppState>()(
           }
         }
 
+        const { rawNotes, rawMoods } = get();
         // Apply optimistic state
         set({
           rawCompletions: newCompletions,
           rawProfile: newProfile,
-          ...computeHydratedState(newProfile, rawHabits, newCompletions, rawFocus, rawAchievements)
+          ...computeHydratedState(newProfile, rawHabits, newCompletions, rawFocus, rawAchievements, rawNotes, rawMoods)
         });
 
         // Backend Sync
@@ -338,18 +392,157 @@ export const useAppStore = create<AppState>()(
 
       deleteHabit: async (supabase, habitId) => {
         await deleteHabitRecord(supabase, habitId);
-        const { rawHabits, rawCompletions, rawProfile, rawFocus, rawAchievements } = get();
+        const { rawHabits, rawCompletions, rawProfile, rawFocus, rawAchievements, rawNotes, rawMoods } = get();
         const nextHabits = rawHabits.filter((habit) => habit.id !== habitId);
         const nextCompletions = rawCompletions.filter((completion) => completion.habit_id !== habitId);
         set({
           rawHabits: nextHabits,
           rawCompletions: nextCompletions,
-          ...computeHydratedState(rawProfile, nextHabits, nextCompletions, rawFocus, rawAchievements)
+          ...computeHydratedState(rawProfile, nextHabits, nextCompletions, rawFocus, rawAchievements, rawNotes, rawMoods)
         });
+      },
+
+      createHabit: async (supabase, data) => {
+        const { userId, rawHabits, rawCompletions, rawProfile, rawFocus, rawAchievements, rawNotes, rawMoods } = get();
+        if (!userId) return;
+        try {
+          const { createHabit: createHabitRecord } = await import("@/lib/supabase/habits");
+          const xpReward = data.difficulty === "Hard" ? 50 : data.difficulty === "Medium" ? 25 : 10;
+          const newHabit = await createHabitRecord(supabase, {
+            user_id: userId,
+            title: data.title,
+            category: data.category,
+            difficulty: data.difficulty,
+            cadence: data.cadence,
+            icon_name: data.icon_name ?? "Target",
+            color: data.color ?? "#9f5cff",
+            note: data.note ?? "",
+            xp_reward: xpReward,
+            sort_order: rawHabits.length
+          });
+          const nextHabits = [...rawHabits, newHabit];
+          set({
+            rawHabits: nextHabits,
+            ...computeHydratedState(rawProfile, nextHabits, rawCompletions, rawFocus, rawAchievements, rawNotes, rawMoods)
+          });
+        } catch (error) {
+          console.error("Failed to create habit", error);
+        }
+      },
+
+      saveFocusSession: async (supabase, durationMinutes) => {
+        const { userId, rawFocus, rawProfile, rawHabits, rawCompletions, rawAchievements, rawNotes, rawMoods } = get();
+        if (!userId) return;
+
+        const startedAt = new Date(Date.now() - durationMinutes * 60000).toISOString();
+        const newSession = {
+          id: `temp-${Date.now()}`,
+          user_id: userId,
+          duration_minutes: durationMinutes,
+          started_at: startedAt,
+          ended_at: null as string | null,
+          created_at: new Date().toISOString()
+        };
+        const nextFocus = [newSession, ...rawFocus];
+        
+        let newProfile = rawProfile ? { ...rawProfile } : null;
+        if (newProfile) {
+          // 5 XP per 5 minutes of focus
+          const xpDelta = Math.max(5, Math.floor(durationMinutes / 5) * 5);
+          newProfile.xp += xpDelta;
+          if (newProfile.xp >= newProfile.next_level_xp) {
+            newProfile.level += 1;
+            newProfile.xp = newProfile.xp - newProfile.next_level_xp;
+            newProfile.next_level_xp = Math.floor(newProfile.next_level_xp * 1.5);
+          }
+        }
+
+        set({
+          rawFocus: nextFocus,
+          rawProfile: newProfile,
+          ...computeHydratedState(newProfile, rawHabits, rawCompletions, nextFocus, rawAchievements, rawNotes, rawMoods)
+        });
+
+        try {
+          const { saveFocusSession: saveFocusRecord } = await import("@/lib/supabase/focus");
+          const saved = await saveFocusRecord(supabase, { user_id: userId, duration_minutes: durationMinutes, started_at: startedAt });
+          // Replace temp session with real one
+          const current = get().rawFocus;
+          set({ rawFocus: current.map(f => f.id === newSession.id ? saved : f) });
+
+          if (newProfile) {
+            const { updateProfile } = await import("@/lib/supabase/profile");
+            await updateProfile(supabase, userId, { xp: newProfile.xp, level: newProfile.level, next_level_xp: newProfile.next_level_xp });
+          }
+        } catch (error) {
+          console.error("Failed to save focus session", error);
+        }
+      },
+
+      addNote: async (supabase, content) => {
+        const { userId, rawNotes, rawProfile, rawHabits, rawCompletions, rawFocus, rawAchievements, rawMoods } = get();
+        if (!userId) return;
+
+        const newNote: Note = {
+          id: `temp-${Date.now()}`,
+          user_id: userId,
+          content,
+          created_at: new Date().toISOString()
+        };
+
+        const nextNotes = [newNote, ...rawNotes];
+        set({
+          rawNotes: nextNotes,
+          ...computeHydratedState(rawProfile, rawHabits, rawCompletions, rawFocus, rawAchievements, nextNotes, rawMoods)
+        });
+
+        try {
+          const { createNote } = await import("@/lib/supabase/notes");
+          const savedNote = await createNote(supabase, { user_id: userId, content });
+          const currentNotes = get().rawNotes;
+          set({ rawNotes: currentNotes.map((n) => (n.id === newNote.id ? savedNote : n)) });
+        } catch (error) {
+          console.error("Failed to save note", error);
+          // Rollback on error
+          set({ rawNotes });
+        }
+      },
+
+      saveMood: async (supabase, mood) => {
+        const { userId, rawMoods, rawProfile, rawHabits, rawCompletions, rawFocus, rawAchievements, rawNotes } = get();
+        if (!userId) return;
+
+        const todayEntry = format(new Date(), "yyyy-MM-dd");
+        const newMood: MoodEntry = {
+          id: `temp-${Date.now()}`,
+          user_id: userId,
+          mood,
+          entry_date: todayEntry,
+          created_at: new Date().toISOString()
+        };
+
+        // Replace today's mood if one already exists, otherwise prepend
+        const filtered = rawMoods.filter(m => m.entry_date !== todayEntry);
+        const nextMoods = [newMood, ...filtered];
+        set({
+          rawMoods: nextMoods,
+          ...computeHydratedState(rawProfile, rawHabits, rawCompletions, rawFocus, rawAchievements, rawNotes, nextMoods)
+        });
+
+        try {
+          const { saveMoodEntry } = await import("@/lib/supabase/mood");
+          const savedMood = await saveMoodEntry(supabase, { user_id: userId, mood, entry_date: todayEntry });
+          const currentMoods = get().rawMoods;
+          set({ rawMoods: currentMoods.map((m) => (m.id === newMood.id ? savedMood : m)) });
+        } catch (error) {
+          console.error("Failed to save mood", error);
+          set({ rawMoods });
+        }
       }
     }),
     {
       name: "habits-os-store",
+      partialize: (state) => ({ selectedCategory: state.selectedCategory }),
     }
   )
 );

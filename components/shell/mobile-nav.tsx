@@ -2,12 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { navItems } from "@/lib/mock-data";
+import { Target, Activity, Trophy, AlarmClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function MobileNav() {
   const pathname = usePathname();
-  const items = navItems.slice(0, 4);
+  
+  const items = [
+    { href: "/dashboard", label: "Dashboard", icon: Target },
+    { href: "/analytics", label: "Analytics", icon: Activity },
+    { href: "/achievements", label: "Achievements", icon: Trophy },
+    { href: "/focus", label: "Focus", icon: AlarmClock }
+  ];
 
   return (
     <nav className="fixed bottom-3 left-1/2 z-50 w-[calc(100vw-1.5rem)] max-w-[360px] -translate-x-1/2 overflow-hidden rounded-lg border border-pulse/40 bg-black/70 p-2 shadow-neon backdrop-blur-xl lg:hidden">
